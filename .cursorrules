@@ -1,0 +1,64 @@
+# Text Corrector App - Best Practices & Learnings
+
+## Language Model Approach
+
+- Rely on the language model's strengths rather than extensive hard-coded rules
+- Use clear, concise instructions to guide the model instead of complex prompts
+- For grammar correction, deterministic generation (do_sample=False) works better than stochastic
+- Consider using more powerful models (like Grammarly/coedit-large) for better quality corrections
+- When upgrading models, test thoroughly with real-world examples
+
+## Text Processing
+
+- Clean model outputs carefully to preserve the actual corrected text
+- When extracting model output, look for the beginning of the original text
+- Implement minimal essential post-processing (capitalization, pronoun fixes)
+- Fix text capitalization and "I" pronouns regardless of model output
+- Avoid special case handling wherever possible - trust the model
+
+## Error Handling
+
+- Implement graceful fallbacks when model output is problematic
+- Keep special-case handling to a minimum for better generalization
+- Don't try to enumerate every possible error case
+- Better to use a more powerful model than to add numerous special cases
+
+## UX Considerations
+
+- Use clipboard-based workflow for maximum compatibility
+- Provide clear visual feedback when corrections are made
+- Show before/after comparisons in notifications
+- Offer Simple Mode for specific use cases
+- Use reliable notification methods with fallbacks
+
+## Model Parameters
+
+- For grammar correction, use conservative settings:
+  - num_beams=5
+  - length_penalty=1.0 (discourage length changes)
+  - early_stopping=True
+  - do_sample=False (deterministic is better for grammar)
+  - repetition_penalty=1.2
+
+## Clipboard Management
+
+- Save clipboard content when possible
+- Clear notifications when operations complete
+- Include simple instructions in notifications
+- Provide clear before/after comparison in notifications
+
+## Code Structure
+
+- Keep business logic cleanly separated from UI
+- Avoid over-engineering solutions
+- Focus on reliability over feature complexity
+- Embrace simplicity and iterative improvements
+- Remove unused or deprecated code regularly
+
+## General Philosophy
+
+- Strive for generalizable solutions over case-by-case fixes
+- Start with simple approaches before adding complexity
+- Leverage the model's natural language understanding
+- Test with specific edge cases but design for general usage
+- When in doubt between rules and model power, choose model power

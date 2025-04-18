@@ -1,0 +1,9 @@
+rumps>=0.4.0
+pyperclip>=1.8.2
+pynput>=1.7.6
+torch>=2.0.0
+transformers>=4.30.0
+safetensors>=0.3.1
+py2app>=0.28.0
+huggingface_hub>=0.14.1
+accelerate>=0.20.0 
