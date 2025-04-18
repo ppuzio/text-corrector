@@ -175,3 +175,24 @@ cython_debug/
 
 # Local model
 local_model/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+
+# Virtual Environment
+venv/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Application specific
+*.log
+*.db
