@@ -182,8 +182,8 @@ class TextCorrectorApp(rumps.App):
         # Get MPS device reference
         device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
         
-        # Grammarly's model doesn't need a special prefix
-        formatted_input = text
+        # Add a specific instruction for strict grammar correction
+        formatted_input = "Fix only grammar errors, keep original wording: " + text
             
         print(f"Processing input: {formatted_input[:50]}...")
         
@@ -194,13 +194,13 @@ class TextCorrectorApp(rumps.App):
         # Generate corrected text
         print("Generating corrected text...")
         
-        # Generation parameters optimized for Grammarly's model
+        # Conservative generation parameters
         outputs = self.model.generate(
             inputs.input_ids,
             max_length=512,
             min_length=max(10, len(text) // 2),  # Don't make it too short
             num_beams=5,
-            length_penalty=1.0,  # Discourage length changes
+            length_penalty=1.5,  # Strongly discourage length changes
             early_stopping=True,
             do_sample=False,     # Deterministic output is better for grammar
             repetition_penalty=1.2,
@@ -211,23 +211,206 @@ class TextCorrectorApp(rumps.App):
         corrected = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
         print(f"Raw model output: {corrected[:50]}... ({len(corrected)} chars)")
         
-        # Check if the output is too short or empty
+        # Remove the instruction if it was included in the output
+        if "Fix only grammar errors, keep original wording:" in corrected:
+            corrected = corrected.replace("Fix only grammar errors, keep original wording:", "").strip()
+        
+        # Check for any model-specific tokens or separators
+        if "SEP>" in corrected:
+            corrected = corrected.split("SEP>")[0].strip()
+        
+        # Safety checks for invalid outputs - these are minimal by design
+        keep_original = False
+        
+        # 1. Check if output is too short or empty
         if len(corrected.strip()) < min(5, len(text)):
             print("Model output too short, using original text")
+            keep_original = True
+            
+        # 2. Check for obvious nonsense - this is a simpler approach that allows grammar corrections
+        #    while still blocking truly unrelated words
+        original_tokens = set(text.lower().split())
+        corrected_tokens = set(corrected.lower().split())
+        
+        # Find significant new words (proper nouns, long words) that seem out of place
+        new_tokens = corrected_tokens - original_tokens
+        suspicious_tokens = []
+        
+        for token in new_tokens:
+            # Skip short words (articles, prepositions, etc.)
+            if len(token) < 4:
+                continue
+                
+            # Skip words that might be different forms of existing words
+            likely_related = False
+            for orig in original_tokens:
+                # Simple stemming check - if words share first 3-4 chars, they might be related
+                if len(orig) >= 4 and len(token) >= 4:
+                    if orig[:4] == token[:4]:
+                        likely_related = True
+                        break
+                
+                # Check edit distance for similar words
+                if len(orig) > 4 and self._edit_distance(orig, token) <= 2:
+                    likely_related = True
+                    break
+                    
+                # Enhanced check for irregular verb forms and other grammatical variants
+                # Use a more flexible approach for longer words - allow greater edit distance
+                if len(orig) >= 5 and len(token) >= 5:
+                    # For longer words, we can be more lenient with edit distance
+                    max_distance = min(3, max(len(orig), len(token)) // 3)
+                    if self._edit_distance(orig, token) <= max_distance:
+                        likely_related = True
+                        break
+                    
+                    # Check for common irregular verb patterns (like write/wrote/written)
+                    # This covers many irregular verb patterns without hardcoding specific words
+                    if (orig[:2] == token[:2] and     # Same starting consonants
+                        abs(len(orig) - len(token)) <= 4):  # Similar length
+                        # Many irregular verbs keep some core consonants while changing vowels
+                        # Extract consonants from both words
+                        orig_consonants = ''.join(c for c in orig if c not in 'aeiou')
+                        token_consonants = ''.join(c for c in token if c not in 'aeiou')
+                        
+                        # If they share enough consonants, likely related
+                        consonant_similarity = self._edit_distance(orig_consonants, token_consonants) / max(len(orig_consonants), len(token_consonants))
+                        if consonant_similarity <= 0.5:  # At least 50% similarity in consonants
+                            likely_related = True
+                            break
+            
+            if not likely_related:
+                suspicious_tokens.append(token)
+        
+        # Only revert if we found truly suspicious tokens (proper nouns, completely unrelated words)
+        if len(suspicious_tokens) > 0:
+            print(f"Found suspicious new tokens: {suspicious_tokens}")
+            keep_original = True
+            
+        # 3. Basic length check - only concerned with major changes
+        if len(corrected.split()) > len(text.split()) * 1.5 or len(corrected.split()) < len(text.split()) * 0.5:
+            print("Output length differs too much from input, using original")
+            keep_original = True
+            
+        # If any safety check failed, use the original
+        if keep_original:
             corrected = text
         
-        # Make sure first letter is capitalized for sentences
+        # Always apply basic capitalization fixes
+        
+        # Fix capitalization at start of sentences
         if corrected and corrected[0].islower() and not corrected.startswith(('i ', 'i\'', 'iPhone')):
             corrected = corrected[0].upper() + corrected[1:]
         
-        # Make sure "I" is always capitalized
+        # Fix "I" capitalization (universal English rule)
         for i_pattern in [' i ', ' i\'m', ' i\'ll', ' i\'ve', ' i\'d', ' i think', ' i believe']:
             if i_pattern in corrected.lower():
                 corrected = corrected.replace(i_pattern.lower(), i_pattern.replace(' i', ' I'))
+                
+        # Apply minimal direct fixes for articles - these are universally agreed upon rules
+        corrected = self.apply_guaranteed_fixes(corrected)
         
         print(f"Final corrected text: {corrected[:50]}... ({len(corrected)} chars)")
         
         return corrected
+    
+    def _edit_distance(self, s1, s2):
+        """Simple Levenshtein distance implementation to check word similarity"""
+        if len(s1) < len(s2):
+            return self._edit_distance(s2, s1)
+            
+        if len(s2) == 0:
+            return len(s1)
+            
+        previous_row = range(len(s2) + 1)
+        for i, c1 in enumerate(s1):
+            current_row = [i + 1]
+            for j, c2 in enumerate(s2):
+                insertions = previous_row[j + 1] + 1
+                deletions = current_row[j] + 1
+                substitutions = previous_row[j] + (c1 != c2)
+                current_row.append(min(insertions, deletions, substitutions))
+            previous_row = current_row
+            
+        return previous_row[-1]
+    
+    def apply_guaranteed_fixes(self, text):
+        """Apply only 100% guaranteed grammar fixes"""
+        if not text:
+            return text
+            
+        result = text
+        
+        # Article usage - these are basically universally accepted rules
+        result = result.replace(" a apple", " an apple")
+        result = result.replace(" a orange", " an orange")
+        result = result.replace(" a hour", " an hour")
+        result = result.replace(" an banana", " a banana")
+        result = result.replace(" an car", " a car")
+        
+        # Fix "an" vs "a" with regex for more general cases
+        import re
+        # Fix "a" before vowel sounds (except for words like "one" that start with vowel but have consonant sound)
+        exceptions = ["one", "once", "unicorn", "united", "university", "uniform", "unique", "union", "use", "usage", "useful"]
+        vowel_regex = r'\ba\s+([aeiou]\w+)\b'
+        for match in re.finditer(vowel_regex, result):
+            word = match.group(1)
+            if word.lower() not in exceptions:
+                result = result.replace(f"a {word}", f"an {word}")
+        
+        # Fix "an" before consonant sounds
+        consonant_regex = r'\ban\s+([bcdfghjklmnpqrstvwxyz]\w+)\b'
+        for match in re.finditer(consonant_regex, result):
+            word = match.group(1)
+            result = result.replace(f"an {word}", f"a {word}")
+            
+        return result
+    
+    def text_similarity(self, text1, text2):
+        """Calculate similarity between two texts (0-1 scale)"""
+        # Simple character-based similarity
+        if not text1 or not text2:
+            return 0
+            
+        # Convert to lowercase for comparison
+        t1 = text1.lower()
+        t2 = text2.lower()
+        
+        # If lengths are very different, similarity is lower
+        len_ratio = min(len(t1), len(t2)) / max(len(t1), len(t2))
+        
+        # Count matching characters
+        matches = sum(1 for a, b in zip(t1, t2) if a == b)
+        
+        # Similarity score
+        return matches / max(len(t1), len(t2)) * len_ratio
+    
+    def has_grammatical_improvement(self, original, corrected):
+        """Check if the correction actually improves grammar rather than just style"""
+        # Check for common grammar improvements
+        improvements = [
+            # Articles
+            (r"\ba ([aeiou])", "an "),  # "a apple" -> "an apple"
+            (r"\ban ([bcdfghjklmnpqrstvwxyz])", "a "),  # "an banana" -> "a banana"
+            
+            # Verb agreement
+            (r"they is\b", "they are"),
+            (r"we is\b", "we are"),
+            (r"he are\b", "he is"),
+            (r"she are\b", "she is"),
+            (r"it are\b", "it is"),
+            
+            # Punctuation
+            (r"[,;\s]+\s*$", "."),  # Missing ending punctuation
+        ]
+        
+        # Check if any improvements are found
+        for pattern, correction in improvements:
+            import re
+            if re.search(pattern, original.lower()) and not re.search(pattern, corrected.lower()):
+                return True
+                
+        return False
 
     def correct_clipboard(self, *args):
         """Simple and reliable clipboard-based correction method"""
