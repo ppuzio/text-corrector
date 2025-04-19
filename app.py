@@ -1,6 +1,5 @@
 import rumps
 import pyperclip
-from pynput import keyboard
 import torch
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 import threading
@@ -15,15 +14,17 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 class TextCorrectorApp(rumps.App):
     def __init__(self):
-        super(TextCorrectorApp, self).__init__("✓", quit_button=rumps.MenuItem("Quit"))
-        self.menu = [
-            "Correct Clipboard (⌘+`)",
-            None,  # Separator
-            "Minimal Corrections",
-            None,  # Separator
-            "Simple Mode",
-            "Settings"
-        ]
+        # Initialize the app with a simple checkmark icon
+        super(TextCorrectorApp, self).__init__("✓", 
+                                            menu=[
+                                                rumps.MenuItem("Correct Clipboard", callback=self.manual_correct),
+                                                None,  # Separator
+                                                rumps.MenuItem("Minimal Corrections", callback=self.toggle_minimal_corrections),
+                                                None,  # Separator
+                                                rumps.MenuItem("Simple Mode", callback=self.toggle_simple_mode),
+                                                rumps.MenuItem("Settings", callback=self.settings)
+                                            ],
+                                            quit_button=rumps.MenuItem("Quit"))
         
         # Initialize model to None
         self.model = None
@@ -40,74 +41,15 @@ class TextCorrectorApp(rumps.App):
         # Flag for simple mode (doesn't preserve clipboard)
         self.simple_mode = False
         
-        # Set up notifier
+        # Set up notifier FIRST to ensure notifications work
         self.setup_notifier()
         
         # Start loading model in background
         threading.Thread(target=self.load_model, daemon=True).start()
         
-        # Try a different approach to setting up the keyboard listener (safer)
-        try:
-            self.setup_keyboard_listener()
-            print("Keyboard listener set up successfully")
-        except Exception as e:
-            print(f"Failed to set up keyboard listener: {e}")
-            self.show_notification("Warning", "Keyboard shortcut may not work. Use the menu item instead.")
-        
         print("App initialized")
         self.show_notification("Started", "Application is starting up...")
-        self.show_notification("Usage", "Copy text (⌘+C), then press ⌘+` to correct")
-    
-    def setup_keyboard_listener(self):
-        """Set up the keyboard listener with error handling"""
-        try:
-            # Try using the HotKey approach instead of GlobalHotKeys
-            self.hotkey = keyboard.HotKey(
-                keyboard.HotKey.parse('<cmd>+`'), 
-                self.on_hotkey_activated
-            )
-            
-            # Set up a standard listener for key press
-            def on_press(key):
-                try:
-                    self.hotkey.press(key)
-                except Exception as e:
-                    print(f"Error in hotkey press: {e}")
-            
-            def on_release(key):
-                try:
-                    self.hotkey.release(key)
-                except Exception as e:
-                    print(f"Error in hotkey release: {e}")
-            
-            # Start the listener in a non-blocking way
-            self.listener = keyboard.Listener(on_press=on_press, on_release=on_release)
-            self.listener.start()
-            
-            # Fallback option in case the hotkey doesn't work
-            print("Keyboard listener started with HotKey approach")
-            
-        except Exception as e:
-            print(f"Error setting up HotKey: {e}")
-            # Try the GlobalHotKeys as fallback but with try-except
-            try:
-                self.listener = keyboard.GlobalHotKeys({
-                    '<cmd>+`': lambda: self.on_hotkey_activated()
-                })
-                self.listener.start()
-                print("Keyboard listener started with GlobalHotKeys approach")
-            except Exception as e:
-                print(f"Failed to set up GlobalHotKeys too: {e}")
-                raise
-    
-    def on_hotkey_activated(self):
-        """Handler for hotkey activation - safer than direct callback"""
-        try:
-            # Use a separate thread to avoid blocking the listener
-            threading.Thread(target=self.correct_clipboard, daemon=True).start()
-        except Exception as e:
-            print(f"Error handling hotkey: {e}")
-            self.show_notification("Error", "Failed to process hotkey command")
+        self.show_notification("Usage", "Copy text, then use the app to correct it")
     
     def setup_notifier(self):
         """Setup terminal-notifier if available, otherwise fall back to other methods"""
@@ -430,7 +372,7 @@ class TextCorrectorApp(rumps.App):
             
         if not text or len(text.strip()) == 0:
             print("No text in clipboard")
-            self.show_notification("Error", "No text in clipboard - please copy (⌘+C) text first")
+            self.show_notification("Error", "No text in clipboard - please copy text first")
             return
         
         print(f"Processing text from clipboard: {text[:50]}... ({len(text)} chars)")
@@ -447,7 +389,7 @@ class TextCorrectorApp(rumps.App):
                 # Simply put the corrected text on clipboard
                 pyperclip.copy(corrected)
                 print("Corrected text copied to clipboard (simple mode)")
-                self.show_notification("Text Corrected ✓", "Corrected text is now on clipboard. Press ⌘+V to paste.")
+                self.show_notification("Text Corrected ✓", "Corrected text is now on clipboard.")
                 return
             
             # In standard mode, check for differences and notify
@@ -461,7 +403,7 @@ class TextCorrectorApp(rumps.App):
                 corr_preview = corrected.strip()[:40] + "..." if len(corrected.strip()) > 40 else corrected.strip()
                 
                 self.show_notification("Text Corrected ✓", 
-                                     f"From: {orig_preview}\nTo: {corr_preview}\n\nCorrected text is on clipboard. Press ⌘+V to paste.")
+                                     f"From: {orig_preview}\nTo: {corr_preview}\n\nCorrected text is on clipboard.")
             else:
                 # No changes needed
                 self.show_notification("No Changes Needed", "Text was already correct")
@@ -567,13 +509,11 @@ class TextCorrectorApp(rumps.App):
             print("------- MODEL LOADING FAILED -------")
             self.show_notification("Error", error_msg)
     
-    @rumps.clicked("Correct Clipboard (⌘+`)")
     def manual_correct(self, _):
         """Menu item to correct clipboard"""
         print("Menu item 'Correct Clipboard' clicked")
         self.correct_clipboard()
     
-    @rumps.clicked("Simple Mode")
     def toggle_simple_mode(self, sender):
         """Toggle simple mode which doesn't preserve clipboard"""
         self.simple_mode = not self.simple_mode
@@ -586,7 +526,6 @@ class TextCorrectorApp(rumps.App):
         else:
             self.show_notification("Mode Changed", "Standard mode enabled")
     
-    @rumps.clicked("Minimal Corrections")
     def toggle_minimal_corrections(self, sender):
         self.minimal_corrections = not self.minimal_corrections
         sender.state = self.minimal_corrections
@@ -594,7 +533,6 @@ class TextCorrectorApp(rumps.App):
         print(f"Switched to {mode} mode")
         self.show_notification("Mode Changed", f"Now using {mode} mode")
     
-    @rumps.clicked("Settings")
     def settings(self, _):
         print("Settings menu item clicked")
         # Settings window with more options
@@ -626,7 +564,7 @@ class TextCorrectorApp(rumps.App):
             
             if correction_style.clicked == "Apply":
                 self.show_notification("Settings Updated", "Your custom correction settings have been applied")
-        
+
 if __name__ == "__main__":
     print("Starting Text Corrector Application")
     app = TextCorrectorApp()

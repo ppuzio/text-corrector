@@ -1,17 +1,47 @@
+# Lessons learned developing this
+
+- Tried to implement a menubar application - the Python way of working with MacOS was less than ideal and I'll probably rewrite it to Swift one day
+- Choosing the model took some time - the Grammarly's was the first one that was actually reliable, even though it needed fine-tuning (it kept adding a lot of stuff like emoticons)
+- It also required some polishing of the prompt - too harsh and the answers were empty, too lax and there were no corrections
+- Paid models like Gemini Pro Max (0.05$ per prompt) actually weren't much more helpful, and they actually generated "test" scripts that didn't even compile :) a dollar terribly spent
+
 # Text Corrector
 
-A macOS menubar application that corrects English text grammar on the fly using AI language models. Simply copy text, press the keyboard shortcut, and paste the corrected version.
+A macOS menubar application that corrects English text grammar on the fly using AI language models. Simply copy text, click the menubar icon to correct it, and paste the corrected version.
 
 ## Features
 
 - Grammar correction using Grammarly's coedit-large model
-- Activated with a simple keyboard shortcut (⌘+`)
+- Accessible from the menu bar
 - No internet required - runs completely offline
 - Preserves clipboard content
 - Simple mode for straightforward corrections
 - Works across all macOS applications
 - Minimal RAM and CPU usage when idle
 - Runs natively on Apple Silicon (M1/M2/M3)
+
+## Usage
+
+1. Copy text from any application
+2. Click the checkmark icon (✓) in the menu bar and select "Correct Clipboard"
+3. Paste the corrected text where needed
+4. Receive notifications indicating if text was corrected
+
+### Menu Options
+
+- **Correct Clipboard**: Manually trigger correction
+- **Minimal Corrections**: Toggle between minimal and standard correction modes
+- **Simple Mode**: Toggle clipboard preservation mode
+- **Settings**: Configure the application behavior
+
+## How It Works
+
+The application uses a local language model to correct grammar and improve text readability. The model is loaded into memory when the app starts and runs locally on your machine without sending any data to external servers.
+
+## Troubleshooting
+
+- **Model Loading Issues**: If the model fails to load, try running `python3 download_model.py` again to re-download it
+- **Notifications Not Showing**: Check macOS notification settings for the app
 
 ## Installation
 
@@ -66,30 +96,6 @@ A macOS menubar application that corrects English text grammar on the fly using 
    ./dist/TextCorrector.app/Contents/MacOS/TextCorrector
    ```
    The app will be available in the `dist` folder.
-
-## Usage
-
-1. Copy text (⌘+C) from any application
-2. Press ⌘+` (Command + backtick) to correct the text
-3. Paste the corrected text (⌘+V) where needed
-4. Receive notifications indicating if text was corrected
-
-### Menu Options
-
-- **Correct Clipboard**: Manually trigger correction (same as keyboard shortcut)
-- **Minimal Corrections**: Toggle between minimal and standard correction modes
-- **Simple Mode**: Toggle clipboard preservation mode
-- **Settings**: Configure the application behavior
-
-## How It Works
-
-The application uses a local language model to correct grammar and improve text readability. The model is loaded into memory when the app starts and runs locally on your machine without sending any data to external servers.
-
-## Troubleshooting
-
-- **Model Loading Issues**: If the model fails to load, try running `python3 download_model.py` again to re-download it
-- **Keyboard Shortcut Not Working**: Ensure you've granted the necessary permissions for keyboard monitoring
-- **Notifications Not Showing**: Check macOS notification settings for the app
 
 ## Development
 
