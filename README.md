@@ -61,6 +61,10 @@ A macOS menubar application that corrects English text grammar on the fly using 
    ```
    python3 setup.py py2app
    ```
+   and run it using
+   ```
+   ./dist/TextCorrector.app/Contents/MacOS/TextCorrector
+   ```
    The app will be available in the `dist` folder.
 
 ## Usage
