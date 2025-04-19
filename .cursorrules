@@ -36,6 +36,18 @@
 - Offer Simple Mode for specific use cases
 - Use reliable notification methods with fallbacks
 - Be transparent when the system chooses not to make changes
+- Keep notification messages concise and avoid instructing specific user actions
+- Focus notifications on what happened rather than what to do next
+- Avoid mentioning UI elements in notification messages for flexibility
+
+## macOS MenuBar App Design
+
+- Prioritize discoverability over keyboard efficiency for menubar utilities
+- Keep menu titles short and descriptive without mentioning interaction methods
+- Use explanatory notifications instead of instruction-laden menu items
+- Consider accessibility impacts when removing instructional text
+- Assume users may not be familiar with standard macOS conventions
+- Provide visual indicators of state changes (checkmarks, icons) rather than text instructions
 
 ## Model Parameters
 
@@ -53,6 +65,8 @@
 - Clear notifications when operations complete
 - Include simple instructions in notifications
 - Provide clear before/after comparison in notifications
+- Avoid instructing specific paste actions in notifications
+- Prefer stating "Clipboard updated" over telling users where to paste
 
 ## Code Structure
 

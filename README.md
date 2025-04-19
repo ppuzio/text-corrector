@@ -1,7 +1,8 @@
 # Lessons learned developing this
 
-- Tried to implement a menubar application - the Python way of working with MacOS was less than ideal and I'll probably rewrite it to Swift one day
+- Tried to implement it with a shortcut (Cmd + Control + C) - the Python way of working with MacOS keyboard permissions was less than ideal and I'll probably rewrite it to Swift one day, since it appears to have much more straightforward access policies.
 - Choosing the model took some time - the Grammarly's was the first one that was actually reliable, even though it needed fine-tuning (it kept adding a lot of stuff like emoticons)
+- The .cursorrules created here will probably be a good baseline for future ML projects
 - It also required some polishing of the prompt - too harsh and the answers were empty, too lax and there were no corrections
 - Paid models like Gemini Pro Max (0.05$ per prompt) actually weren't much more helpful, and they actually generated "test" scripts that didn't even compile :) a dollar terribly spent
 
